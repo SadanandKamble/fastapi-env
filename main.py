@@ -1,143 +1,120 @@
 import asyncio
-import uvicorn
 import random
 import numpy as np
 import pandas as pd
+import uvicorn
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from sqlalchemy import create_engine,text
-from sqlalchemy.orm import sessionmaker 
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
-# fastapi setup
+
+# FastAPI app
 app = FastAPI(title="Student management API")
 
-# database setup
+# Database setup
 DATABASE_URL = "postgresql://user:Sada0001@localhost:5432/studentdb"
-engine = create_engine(DATABASE_URL)   
-SessionLocal = sessionmaker (bind=engine)
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
 
-# Pydantic model for student for post request
 
+# Pydantic model for student
 class Student(BaseModel):
     id: int
     name: str
     score: float
 
 
-#ASYNC:SIMULATE FETCHING DATA FROM EXTERNAL SOURCE
-async def fetch_score(student):
-    await asyncio.sleep(1)  # Simulate network delay
-    data = {
+async def fetch_score(student_name: str) -> dict:
+    """Simulate fetching a score for a student (returns dict)."""
+    await asyncio.sleep(1)
+    return {
         "id": random.randint(1, 1000),
-        "name": f"Student_{random.randint(1, 100)}",
-        "score": str(random.randint(50, 100))
-    }
-    return data
-
-#main processing function
-async def process_student(students):
-    #fetch scores aynchronously
-    tasks=[fetch_score(s) for s in students]
-    scores=await asyncio.gather(*tasks)
-
-
-#NUMPY:stats  
-    scores_array = np.array(scores)
-    stats={
-            "AVERAGE":float(scores_array.mean()),
-            "HIGHEST":int (scores_array.max()),
-            "LOWEST":int(scores_array.min())
-
+        "name": student_name,
+        "score": random.randint(50, 100),
     }
 
 
- #PANDAS : BUILD DATAFRAME
-    df= pd.DataFrame({
-        "Student": students,
-        "Score": scores
-    })
-    df["Result"] = df["Score"].apply(lambda x: "PASS" if x >= 60 else "FAIL")
+async def process_student(students: list):
+    """Fetch scores asynchronously, save to CSV and DB, and return stats + records."""
+    tasks = [fetch_score(s) for s in students]
+    records = await asyncio.gather(*tasks)
 
-    #SAVE CSV
+    df = pd.DataFrame(records)
+    if df.empty:
+        stats = {"AVERAGE": 0.0, "HIGHEST": 0, "LOWEST": 0}
+    else:
+        df["score"] = df["score"].astype(int)
+        df["result"] = df["score"].apply(lambda x: "PASS" if x >= 60 else "FAIL")
+        scores_array = df["score"].to_numpy()
+        stats = {
+            "AVERAGE": float(scores_array.mean()),
+            "HIGHEST": int(scores_array.max()),
+            "LOWEST": int(scores_array.min()),
+        }
+
     df.to_csv("students.csv", index=False)
 
-    # save postgresql
     db = SessionLocal()
-    for index, row in df.iterrows():    
-        stmt = text("INSERT INTO students (id, name, score, result) VALUES (:id, :name, :score, :result)")
-        db.execute(stmt, {
-            "id": row["id"],
-            "name": row["name"],
-            "score": row["Score"],
-            "result": row["Result"]
-        })      
+    for _, row in df.iterrows():
+        stmt = text(
+            "INSERT INTO students (id, name, score, result) VALUES (:id, :name, :score, :result)"
+        )
+        db.execute(
+            stmt,
+            {"id": int(row["id"]), "name": row["name"], "score": int(row["score"]), "result": row["result"]},
+        )
     db.commit()
     db.close()
 
     return {"stats": stats, "dataframe": df.to_dict(orient="records")}
 
+
 @app.get("/run")
 async def run_simulation():
-    students = ["Alice", "Bob", "Charlie", "Diana", "Eve"]  # Example student list
-    data ,stats = await process_student(students)
-    return {"message": "Data processing completed successfully", "data": data, "stats":stats}
+    students = ["Alice", "Bob", "Charlie", "Diana", "Eve"]
+    result = await process_student(students)
+    return {"message": "Data processing completed successfully", "result": result}
 
 
-#POST ENDPOINT: TO ADD STUDENT
 @app.post("/add_student")
 async def add_student(student: Student):
-
-    #load csv or create new one
     try:
         df = pd.read_csv("students.csv")
     except FileNotFoundError:
         df = pd.DataFrame(columns=["id", "name", "score", "result"])
-    #calculate result
+
     result = "PASS" if int(student.score) >= 60 else "FAIL"
-    #append to dataframe
-    new_row = pd.DataFrame([{
-        "id": student.id,
-        "name": student.name,
-        "score": student.score,
-        "result": result
-    }])
+    new_row = pd.DataFrame([{"id": int(student.id), "name": student.name, "score": int(student.score), "result": result}])
 
-
-    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-
-    #save to csv
+    df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv("students.csv", index=False)
 
-    #insert into Postgressql
     db = SessionLocal()
-    stmt = text("INSERT INTO students (id, name, score, result) VALUES (:id, :name, :score, :result)")
-    db.execute(stmt, {
-        "id": student.id,               
-        "name": student.name,
-        "score": student.score,
-        "result": result
-    })   
+    stmt = text(
+        "INSERT INTO students (id, name, score, result) VALUES (:id, :name, :score, :result)"
+    )
+    db.execute(stmt, {"id": int(student.id), "name": student.name, "score": int(student.score), "result": result})
     db.commit()
     db.close()
 
-#Recalculate stats
-    scores_array = np.array(df["score"].astype(int))
+    scores_array = df["score"].astype(int).to_numpy()
     stats = {
         "AVERAGE": float(scores_array.mean()),
         "HIGHEST": int(scores_array.max()),
-        "LOWEST": int(scores_array.min())
+        "LOWEST": int(scores_array.min()),
     }
 
-    return{
-            "message": f"Student {student.name} added successfully",
-            "student":new_row.to_dict(orient="records")[0],"stats": stats
-           }
-from fastapi import FastAPI
+    return {"message": f"Student {student.name} added successfully", "student": new_row.to_dict(orient="records")[0], "stats": stats}
 
-app = FastAPI()
+
 @app.get("/")
 def index():
     return {"message": "Hello, World!"}
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 
