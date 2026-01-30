@@ -134,10 +134,3 @@ async def add_student(student: Student):
             "message": f"Student {student.name} added successfully",
             "student":new_row.to_dict(orient="records")[0],"stats": stats
            }
-from fastapi import FastAPI
-
-app = FastAPI()
-@app.get("/")
-def index():
-    return {"message": "Hello, World!"}
-
