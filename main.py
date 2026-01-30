@@ -110,11 +110,3 @@ async def add_student(student: Student):
     return {"message": f"Student {student.name} added successfully", "student": new_row.to_dict(orient="records")[0], "stats": stats}
 
 
-@app.get("/")
-def index():
-    return {"message": "Hello, World!"}
-
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
