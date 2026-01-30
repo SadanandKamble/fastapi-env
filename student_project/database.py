@@ -4,7 +4,7 @@ import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 
 # postgresSQL conection string
-DATABASE_URL = "postgresql://user:Sada0001@localhost:5432/studentdb" 
+DATABASE_URL = "postgresql://postgres:Sada0001@localhost:5432/studentdb" 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker( bind=engine)
 
@@ -16,4 +16,5 @@ stuents = sqlalchemy.Table(
     sqlalchemy.Column("score", sqlalchemy.Float),
 )
  
+
 
