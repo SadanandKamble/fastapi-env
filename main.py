@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 
 # FastAPI app
-app = FastAPI(title="Student management API")
+app = FastAPI(title="Students Score API")
 
 # Database setup
 DATABASE_URL = "postgresql://user:Sada0001@localhost:5432/studentdb"
