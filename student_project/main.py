@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 app = FastAPI(title="Student management API")
 
 # database setup
-DATABASE_URL = "postgresql://user:Sada0001@localhost:5432/studentdb"
+DATABASE_URL = "postgresql://postgres:Sada0001@localhost:5432/studentdb"
 engine = create_engine(DATABASE_URL)   
 SessionLocal = sessionmaker (bind=engine)
 
